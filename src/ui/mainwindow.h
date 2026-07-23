@@ -6,6 +6,7 @@
 
 class QLabel;
 class QListWidget;
+class QListWidgetItem;
 class QPushButton;
 class QSplitter;
 class QWidget;
@@ -19,6 +20,7 @@ public:
 
 private slots:
     void openPatch();
+    void fileSelected(QListWidgetItem *item);
 
 private:
     void createMenus();
@@ -26,6 +28,8 @@ private:
     void createWelcomeScreen();
     void createWorkspace();
     void populateFileList();
+
+    void showFileDetails(const FileDiff &file);
 
     QWidget *welcomeWidget = nullptr;
 

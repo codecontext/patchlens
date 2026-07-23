@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QListWidget>
+#include <QListWidgetItem>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -112,6 +113,10 @@ void MainWindow::createWorkspace()
 
     fileList = new QListWidget(splitter);
 
+    connect(fileList,
+            &QListWidget::itemClicked,
+            this,
+            &MainWindow::fileSelected);
 
     placeholder = new QLabel(
         "Select a file to view changes.",
@@ -212,4 +217,32 @@ void MainWindow::openPatch()
 
 
     populateFileList();
+}
+
+void MainWindow::fileSelected(QListWidgetItem *item)
+{
+    int index = fileList->row(item);
+
+    if (index < 0 ||
+        index >= currentPatch.files.size())
+    {
+        return;
+    }
+
+    showFileDetails(currentPatch.files[index]);
+}
+
+
+void MainWindow::showFileDetails(const FileDiff &file)
+{
+    QString text;
+
+    text += "File:     " + file.newPath + "\n";
+    text += "Old Path: " + file.oldPath + "\n";
+    text += "New Path: " + file.newPath + "\n";
+    text += "Hunks:    " + QString::number(file.hunks.size());
+
+
+    placeholder->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    placeholder->setText(text);
 }
