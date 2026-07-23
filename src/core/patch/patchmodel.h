@@ -50,6 +50,7 @@ struct PatchFile
 {
     QString subject;
     QString author;
+    QString date;
 
     std::vector<FileDiff> files;
 };
