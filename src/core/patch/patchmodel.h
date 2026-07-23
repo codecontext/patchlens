@@ -15,13 +15,24 @@ enum class DiffLineType
 struct DiffLine
 {
     DiffLineType type;
+
+    int oldLine = -1;
+    int newLine = -1;
+
     QString text;
 };
 
 
 struct DiffHunk
 {
-    QString header;
+    int oldStart = 0;
+    int oldCount = 0;
+
+    int newStart = 0;
+    int newCount = 0;
+
+    QString functionName;
+
     std::vector<DiffLine> lines;
 };
 
