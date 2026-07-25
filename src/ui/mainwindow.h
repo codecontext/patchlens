@@ -3,11 +3,11 @@
 #include <QMainWindow>
 
 #include "../core/patch/patchmodel.h"
+#include "../widgets/diffviewer.h"
 
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
-class QPlainTextEdit;
 class QPushButton;
 class QSplitter;
 class QWidget;
@@ -30,15 +30,13 @@ private:
     void createWorkspace();
     void populateFileList();
 
-    void showFileDetails(const FileDiff &file);
-
     QWidget *welcomeWidget = nullptr;
 
     QLabel *patchNameLabel = nullptr;
 
     QSplitter *splitter = nullptr;
     QListWidget *fileList = nullptr;
-    QPlainTextEdit *diffViewer = nullptr;
+    DiffViewer *diffViewer = nullptr;
 
     QPushButton *openButton = nullptr;
 

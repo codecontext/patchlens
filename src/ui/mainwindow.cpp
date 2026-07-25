@@ -6,18 +6,17 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QFontDatabase>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
 #include <QTextStream>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QLabel>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -119,18 +118,7 @@ void MainWindow::createWorkspace()
             this,
             &MainWindow::fileSelected);
 
-
-    diffViewer = new QPlainTextEdit(splitter);
-
-    diffViewer->setReadOnly(true);
-
-    diffViewer->setPlainText(
-        "Select a file to view changes.");
-
-    diffViewer->setFont(
-        QFontDatabase::systemFont(
-            QFontDatabase::FixedFont));
-
+    diffViewer = new DiffViewer(splitter);
 
     splitter->addWidget(fileList);
     splitter->addWidget(diffViewer);
@@ -234,54 +222,5 @@ void MainWindow::fileSelected(QListWidgetItem *item)
         return;
     }
 
-    showFileDetails(
-        currentPatch.files[index]);
-}
-
-
-void MainWindow::showFileDetails(const FileDiff &file)
-{
-    QString text;
-
-    for (const DiffHunk &hunk : file.hunks)
-    {
-        text += QString(
-            "@@ -%1,%2 +%3,%4 @@")
-                    .arg(hunk.oldStart)
-                    .arg(hunk.oldCount)
-                    .arg(hunk.newStart)
-                    .arg(hunk.newCount);
-
-        if (!hunk.functionName.isEmpty())
-        {
-            text += " " + hunk.functionName;
-        }
-
-        text += "\n";
-
-        for (const DiffLine &line : hunk.lines)
-        {
-            switch (line.type)
-            {
-            case DiffLineType::Context:
-                text += " ";
-                break;
-
-            case DiffLineType::Added:
-                text += "+";
-                break;
-
-            case DiffLineType::Removed:
-                text += "-";
-                break;
-            }
-
-            text += line.text;
-            text += "\n";
-        }
-
-        text += "\n";
-    }
-
-    diffViewer->setPlainText(text);
+    diffViewer->setFile(currentPatch.files[index]);
 }

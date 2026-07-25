@@ -16,6 +16,7 @@ add_executable(PatchLens
     src/main.cpp
     src/ui/mainwindow.cpp
     src/core/patch/patchparser.cpp
+    src/widgets/diffviewer.cpp
 )
 
 target_include_directories(PatchLens
