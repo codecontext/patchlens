@@ -7,6 +7,7 @@
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
+class QPlainTextEdit;
 class QPushButton;
 class QSplitter;
 class QWidget;
@@ -37,7 +38,7 @@ private:
 
     QSplitter *splitter = nullptr;
     QListWidget *fileList = nullptr;
-    QLabel *placeholder = nullptr;
+    QPlainTextEdit *diffViewer = nullptr;
 
     QPushButton *openButton = nullptr;
 

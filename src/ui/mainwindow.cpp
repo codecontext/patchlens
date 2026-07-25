@@ -6,12 +6,13 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QLabel>
+#include <QFontDatabase>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
 #include <QTextStream>
@@ -118,16 +119,21 @@ void MainWindow::createWorkspace()
             this,
             &MainWindow::fileSelected);
 
-    placeholder = new QLabel(
-        "Select a file to view changes.",
-        splitter);
 
-    placeholder->setAlignment(
-        Qt::AlignCenter);
+    diffViewer = new QPlainTextEdit(splitter);
+
+    diffViewer->setReadOnly(true);
+
+    diffViewer->setPlainText(
+        "Select a file to view changes.");
+
+    diffViewer->setFont(
+        QFontDatabase::systemFont(
+            QFontDatabase::FixedFont));
 
 
     splitter->addWidget(fileList);
-    splitter->addWidget(placeholder);
+    splitter->addWidget(diffViewer);
 
 
     splitter->setSizes(
@@ -141,7 +147,6 @@ void MainWindow::createWorkspace()
         patchNameLabel,
         0);
 
-
     mainLayout->addWidget(
         splitter,
         1);
@@ -154,7 +159,6 @@ void MainWindow::createWorkspace()
 void MainWindow::populateFileList()
 {
     fileList->clear();
-
 
     for (const FileDiff &file : currentPatch.files)
     {
@@ -219,6 +223,7 @@ void MainWindow::openPatch()
     populateFileList();
 }
 
+
 void MainWindow::fileSelected(QListWidgetItem *item)
 {
     int index = fileList->row(item);
@@ -229,7 +234,8 @@ void MainWindow::fileSelected(QListWidgetItem *item)
         return;
     }
 
-    showFileDetails(currentPatch.files[index]);
+    showFileDetails(
+        currentPatch.files[index]);
 }
 
 
@@ -237,12 +243,45 @@ void MainWindow::showFileDetails(const FileDiff &file)
 {
     QString text;
 
-    text += "File:     " + file.newPath + "\n";
-    text += "Old Path: " + file.oldPath + "\n";
-    text += "New Path: " + file.newPath + "\n";
-    text += "Hunks:    " + QString::number(file.hunks.size());
+    for (const DiffHunk &hunk : file.hunks)
+    {
+        text += QString(
+            "@@ -%1,%2 +%3,%4 @@")
+                    .arg(hunk.oldStart)
+                    .arg(hunk.oldCount)
+                    .arg(hunk.newStart)
+                    .arg(hunk.newCount);
 
+        if (!hunk.functionName.isEmpty())
+        {
+            text += " " + hunk.functionName;
+        }
 
-    placeholder->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    placeholder->setText(text);
+        text += "\n";
+
+        for (const DiffLine &line : hunk.lines)
+        {
+            switch (line.type)
+            {
+            case DiffLineType::Context:
+                text += " ";
+                break;
+
+            case DiffLineType::Added:
+                text += "+";
+                break;
+
+            case DiffLineType::Removed:
+                text += "-";
+                break;
+            }
+
+            text += line.text;
+            text += "\n";
+        }
+
+        text += "\n";
+    }
+
+    diffViewer->setPlainText(text);
 }
