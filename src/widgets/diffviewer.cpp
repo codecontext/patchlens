@@ -30,6 +30,12 @@ QString DiffViewer::buildUnifiedDiff(
 
     for (const DiffHunk &hunk : file.hunks)
     {
+        /*
+         * Hunk header
+         *
+         * Example:
+         * @@ -114,11 +114,13 @@ function_name
+         */
         text += QString(
                     "@@ -%1,%2 +%3,%4 @@")
                     .arg(hunk.oldStart)
@@ -45,26 +51,67 @@ QString DiffViewer::buildUnifiedDiff(
 
         text += "\n";
 
+
+        /*
+         * Diff lines
+         *
+         * Old line | New line | Type | Content
+         */
         for (const DiffLine &line : hunk.lines)
         {
+            QString oldLineNumber;
+            QString newLineNumber;
+            QString prefix;
+
+
+            if (line.oldLine >= 0)
+            {
+                oldLineNumber =
+                    QString::number(line.oldLine);
+            }
+
+
+            if (line.newLine >= 0)
+            {
+                newLineNumber =
+                    QString::number(line.newLine);
+            }
+
+
             switch (line.type)
             {
             case DiffLineType::Context:
-                text += " ";
+                prefix = " ";
                 break;
 
             case DiffLineType::Added:
-                text += "+";
+                prefix = "+";
                 break;
 
             case DiffLineType::Removed:
-                text += "-";
+                prefix = "-";
                 break;
             }
 
-            text += line.text;
-            text += "\n";
+
+            /*
+             * Format:
+             *
+             *   old   new  +/- content
+             *
+             * Example:
+             *
+             *   114   114   static DEVICE_API(...)
+             *   115         -IRQ_CONNECT(...)
+             *         115   +IRQ_CONNECT(...)
+             */
+            text += QString("%1 %2 %3 %4\n")
+                        .arg(oldLineNumber, 5)
+                        .arg(newLineNumber, 5)
+                        .arg(prefix)
+                        .arg(line.text);
         }
+
 
         text += "\n";
     }
