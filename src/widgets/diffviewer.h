@@ -14,5 +14,5 @@ public:
     void setFile(const FileDiff &file);
 
 private:
-    QString buildUnifiedDiff(const FileDiff &file);
+    void renderSideBySide(const FileDiff &file);
 };
