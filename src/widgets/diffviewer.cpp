@@ -4,7 +4,102 @@
 #include <QTextCharFormat>
 #include <QTextCursor>
 
+#include <algorithm>
 #include <vector>
+
+
+namespace
+{
+
+constexpr int LineNumberWidth = 5;
+constexpr int CodeWidth = 70;
+constexpr int ColumnWidth =
+    LineNumberWidth + 3 + CodeWidth;
+
+
+QString formatColumn(
+    const QString &lineNumber,
+    const QString &text)
+{
+    QString column =
+        QString("%1 | %2")
+            .arg(lineNumber, LineNumberWidth)
+            .arg(text);
+
+    return column.leftJustified(ColumnWidth);
+}
+
+
+QTextCharFormat contextFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#24292f"));
+
+    return format;
+}
+
+
+QTextCharFormat addedFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#1a7f37"));
+
+    format.setBackground(
+        QColor("#dafbe1"));
+
+    return format;
+}
+
+
+QTextCharFormat removedFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#cf222e"));
+
+    format.setBackground(
+        QColor("#ffebe9"));
+
+    return format;
+}
+
+
+QTextCharFormat hunkFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#0969da"));
+
+    format.setBackground(
+        QColor("#ddf4ff"));
+
+    format.setFontWeight(
+        QFont::Bold);
+
+    return format;
+}
+
+
+QTextCharFormat headerFormat()
+{
+    QTextCharFormat format;
+
+    format.setFontWeight(
+        QFont::Bold);
+
+    format.setForeground(
+        QColor("#57606a"));
+
+    return format;
+}
+
+} // namespace
 
 
 DiffViewer::DiffViewer(QWidget *parent)
@@ -12,12 +107,12 @@ DiffViewer::DiffViewer(QWidget *parent)
 {
     setReadOnly(true);
 
+    setLineWrapMode(
+        QPlainTextEdit::NoWrap);
+
     setFont(
         QFontDatabase::systemFont(
             QFontDatabase::FixedFont));
-
-    setLineWrapMode(
-        QPlainTextEdit::NoWrap);
 
     setPlainText(
         "Select a file to view changes.");
@@ -39,16 +134,31 @@ void DiffViewer::renderSideBySide(
 
 
     /*
-     * Column widths.
-     *
-     * Old line number + separator + code
-     * New line number + separator + code
+     * Column headers.
      */
-    constexpr int lineNumberWidth = 5;
-    constexpr int separatorWidth = 3;
-    constexpr int codeWidth = 70;
+    QString oldHeader =
+        QString("OLD").leftJustified(
+            ColumnWidth);
+
+    QString newHeader =
+        "NEW";
 
 
+    cursor.insertText(
+        oldHeader,
+        headerFormat());
+
+    cursor.insertText(
+        " | ");
+
+    cursor.insertText(
+        newHeader + "\n",
+        headerFormat());
+
+
+    /*
+     * Render each hunk.
+     */
     for (const DiffHunk &hunk : file.hunks)
     {
         QString hunkHeader =
@@ -64,44 +174,11 @@ void DiffViewer::renderSideBySide(
             hunkHeader += hunk.functionName;
         }
 
-
-        QTextCharFormat hunkFormat;
-
-        hunkFormat.setForeground(
-            QColor("#0969da"));
-
-        hunkFormat.setBackground(
-            QColor("#ddf4ff"));
-
-        hunkFormat.setFontWeight(
-            QFont::Bold);
-
-
         cursor.insertText(
             hunkHeader + "\n",
-            hunkFormat);
+            hunkFormat());
 
 
-        /*
-         * Process the hunk in pairs.
-         *
-         * Context:
-         *
-         *     OLD                  NEW
-         *     context             context
-         *
-         * Removed:
-         *
-         *     OLD                  NEW
-         *     removed              empty
-         *
-         * Added:
-         *
-         *     OLD                  NEW
-         *     empty                added
-         *
-         * Consecutive removed/added lines are paired.
-         */
         size_t index = 0;
 
         while (index < hunk.lines.size())
@@ -111,38 +188,37 @@ void DiffViewer::renderSideBySide(
 
 
             /*
-             * Context line.
+             * Context line:
+             *
+             * OLD                              NEW
+             * 114 | foo();                     114 | foo();
              */
             if (line.type ==
                 DiffLineType::Context)
             {
-                QString oldText =
-                    QString("%1 | %2")
-                        .arg(line.oldLine,
-                             lineNumberWidth)
-                        .arg(line.text);
+                QString oldColumn =
+                    formatColumn(
+                        QString::number(
+                            line.oldLine),
+                        line.text);
 
-                QString newText =
-                    QString("%1 | %2")
-                        .arg(line.newLine,
-                             lineNumberWidth)
-                        .arg(line.text);
+                QString newColumn =
+                    formatColumn(
+                        QString::number(
+                            line.newLine),
+                        line.text);
 
-
-                QString row =
-                    QString("%1 | %2\n")
-                        .arg(oldText.left(codeWidth +
-                                          lineNumberWidth +
-                                          separatorWidth),
-                             -codeWidth)
-                        .arg(newText);
-
-
-                QTextCharFormat format;
 
                 cursor.insertText(
-                    row,
-                    format);
+                    oldColumn,
+                    contextFormat());
+
+                cursor.insertText(
+                    " | ");
+
+                cursor.insertText(
+                    newColumn + "\n",
+                    contextFormat());
 
                 ++index;
 
@@ -151,15 +227,15 @@ void DiffViewer::renderSideBySide(
 
 
             /*
-             * Collect consecutive removed lines.
+             * Collect removed lines.
              */
-            std::vector<const DiffLine *> removedLines;
+            std::vector<const DiffLine *> removed;
 
             while (index < hunk.lines.size() &&
                    hunk.lines[index].type ==
                        DiffLineType::Removed)
             {
-                removedLines.push_back(
+                removed.push_back(
                     &hunk.lines[index]);
 
                 ++index;
@@ -167,15 +243,15 @@ void DiffViewer::renderSideBySide(
 
 
             /*
-             * Collect consecutive added lines.
+             * Collect added lines.
              */
-            std::vector<const DiffLine *> addedLines;
+            std::vector<const DiffLine *> added;
 
             while (index < hunk.lines.size() &&
                    hunk.lines[index].type ==
                        DiffLineType::Added)
             {
-                addedLines.push_back(
+                added.push_back(
                     &hunk.lines[index]);
 
                 ++index;
@@ -184,130 +260,74 @@ void DiffViewer::renderSideBySide(
 
             /*
              * Pair removed and added lines.
-             *
-             * If the number of lines differs,
-             * remaining lines appear on only
-             * one side.
              */
-            size_t pairCount =
+            const size_t rowCount =
                 std::max(
-                    removedLines.size(),
-                    addedLines.size());
+                    removed.size(),
+                    added.size());
 
 
-            for (size_t pair = 0;
-                 pair < pairCount;
-                 ++pair)
+            for (size_t row = 0;
+                 row < rowCount;
+                 ++row)
             {
                 const DiffLine *oldLine =
-                    pair < removedLines.size()
-                        ? removedLines[pair]
+                    row < removed.size()
+                        ? removed[row]
                         : nullptr;
 
                 const DiffLine *newLine =
-                    pair < addedLines.size()
-                        ? addedLines[pair]
+                    row < added.size()
+                        ? added[row]
                         : nullptr;
 
 
-                QString oldNumber;
-                QString oldText;
-
-                QString newNumber;
-                QString newText;
+                QString oldColumn;
+                QString newColumn;
 
 
                 if (oldLine)
                 {
-                    oldNumber =
-                        QString::number(
-                            oldLine->oldLine);
-
-                    oldText =
-                        oldLine->text;
+                    oldColumn =
+                        formatColumn(
+                            QString::number(
+                                oldLine->oldLine),
+                            oldLine->text);
+                }
+                else
+                {
+                    oldColumn =
+                        QString(
+                            ColumnWidth,
+                            ' ');
                 }
 
 
                 if (newLine)
                 {
-                    newNumber =
-                        QString::number(
-                            newLine->newLine);
-
-                    newText =
-                        newLine->text;
+                    newColumn =
+                        formatColumn(
+                            QString::number(
+                                newLine->newLine),
+                            newLine->text);
                 }
-
-
-                QString oldColumn =
-                    QString("%1 | %2")
-                        .arg(oldNumber,
-                             lineNumberWidth)
-                        .arg(oldText);
-
-
-                QString newColumn =
-                    QString("%1 | %2")
-                        .arg(newNumber,
-                             lineNumberWidth)
-                        .arg(newText);
-
-
-                /*
-                 * Pad the old column so that
-                 * the new column always begins
-                 * at the same position.
-                 */
-                oldColumn =
-                    oldColumn.leftJustified(
-                        codeWidth +
-                        lineNumberWidth +
-                        separatorWidth);
-
-
-                QString row =
-                    oldColumn +
-                    " | " +
-                    newColumn +
-                    "\n";
-
-
-                QTextCharFormat oldFormat;
-                QTextCharFormat newFormat;
-
-
-                if (oldLine)
+                else
                 {
-                    oldFormat.setForeground(
-                        QColor("#cf222e"));
-
-                    oldFormat.setBackground(
-                        QColor("#ffebe9"));
-                }
-
-
-                if (newLine)
-                {
-                    newFormat.setForeground(
-                        QColor("#1a7f37"));
-
-                    newFormat.setBackground(
-                        QColor("#dafbe1"));
+                    newColumn =
+                        QString(
+                            ColumnWidth,
+                            ' ');
                 }
 
 
                 /*
-                 * Insert the complete row first.
-                 *
-                 * Formatting individual columns
-                 * will be handled in the next
-                 * rendering refinement.
+                 * Removed side.
                  */
                 if (oldLine)
                 {
                     cursor.insertText(
                         oldColumn,
-                        oldFormat);
+                        removedFormat());
                 }
                 else
                 {
@@ -316,15 +336,21 @@ void DiffViewer::renderSideBySide(
                 }
 
 
+                /*
+                 * Central separator.
+                 */
                 cursor.insertText(
                     " | ");
 
 
+                /*
+                 * Added side.
+                 */
                 if (newLine)
                 {
                     cursor.insertText(
                         newColumn,
-                        newFormat);
+                        addedFormat());
                 }
                 else
                 {
@@ -332,14 +358,24 @@ void DiffViewer::renderSideBySide(
                         newColumn);
                 }
 
+
                 cursor.insertText(
                     "\n");
             }
         }
+
 
         cursor.insertText("\n");
     }
 
 
     setTextCursor(cursor);
+
+    /*
+     * Start at the beginning of the document.
+     */
+    moveCursor(
+        QTextCursor::Start);
+
+    ensureCursorVisible();
 }
