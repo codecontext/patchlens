@@ -1,6 +1,9 @@
 #include "diffviewer.h"
 
 #include <QFontDatabase>
+#include <QTextCharFormat>
+#include <QTextCursor>
+
 
 DiffViewer::DiffViewer(QWidget *parent)
     : QPlainTextEdit(parent)
@@ -18,58 +21,54 @@ DiffViewer::DiffViewer(QWidget *parent)
 
 void DiffViewer::setFile(const FileDiff &file)
 {
-    setPlainText(
-        buildUnifiedDiff(file));
-}
+    clear();
 
-
-QString DiffViewer::buildUnifiedDiff(
-    const FileDiff &file)
-{
-    QString text;
+    QTextCursor cursor(document());
 
     for (const DiffHunk &hunk : file.hunks)
     {
-        /*
-         * Hunk header
-         *
-         * Example:
-         * @@ -114,11 +114,13 @@ function_name
-         */
-        text += QString(
-                    "@@ -%1,%2 +%3,%4 @@")
-                    .arg(hunk.oldStart)
-                    .arg(hunk.oldCount)
-                    .arg(hunk.newStart)
-                    .arg(hunk.newCount);
+        QString hunkHeader =
+            QString("@@ -%1,%2 +%3,%4 @@")
+                .arg(hunk.oldStart)
+                .arg(hunk.oldCount)
+                .arg(hunk.newStart)
+                .arg(hunk.newCount);
 
         if (!hunk.functionName.isEmpty())
         {
-            text += " ";
-            text += hunk.functionName;
+            hunkHeader += " ";
+            hunkHeader += hunk.functionName;
         }
 
-        text += "\n";
+        hunkHeader += "\n";
+
+        QTextCharFormat hunkFormat;
+
+        hunkFormat.setForeground(
+            QColor("#0969da"));
+
+        hunkFormat.setBackground(
+            QColor("#ddf4ff"));
+
+        hunkFormat.setFontWeight(
+            QFont::Bold);
+
+        cursor.insertText(
+            hunkHeader,
+            hunkFormat);
 
 
-        /*
-         * Diff lines
-         *
-         * Old line | New line | Type | Content
-         */
         for (const DiffLine &line : hunk.lines)
         {
             QString oldLineNumber;
             QString newLineNumber;
             QString prefix;
 
-
             if (line.oldLine >= 0)
             {
                 oldLineNumber =
                     QString::number(line.oldLine);
             }
-
 
             if (line.newLine >= 0)
             {
@@ -94,27 +93,46 @@ QString DiffViewer::buildUnifiedDiff(
             }
 
 
-            /*
-             * Format:
-             *
-             *   old   new  +/- content
-             *
-             * Example:
-             *
-             *   114   114   static DEVICE_API(...)
-             *   115         -IRQ_CONNECT(...)
-             *         115   +IRQ_CONNECT(...)
-             */
-            text += QString("%1 %2 %3 %4\n")
-                        .arg(oldLineNumber, 5)
-                        .arg(newLineNumber, 5)
-                        .arg(prefix)
-                        .arg(line.text);
+            QString formattedLine =
+                QString("%1 %2 %3 %4\n")
+                    .arg(oldLineNumber, 5)
+                    .arg(newLineNumber, 5)
+                    .arg(prefix)
+                    .arg(line.text);
+
+
+            QTextCharFormat lineFormat;
+
+            switch (line.type)
+            {
+            case DiffLineType::Context:
+                break;
+
+            case DiffLineType::Added:
+                lineFormat.setForeground(
+                    QColor("#1a7f37"));
+
+                lineFormat.setBackground(
+                    QColor("#dafbe1"));
+                break;
+
+            case DiffLineType::Removed:
+                lineFormat.setForeground(
+                    QColor("#cf222e"));
+
+                lineFormat.setBackground(
+                    QColor("#ffebe9"));
+                break;
+            }
+
+
+            cursor.insertText(
+                formattedLine,
+                lineFormat);
         }
 
-
-        text += "\n";
+        cursor.insertText("\n");
     }
 
-    return text;
+    setTextCursor(cursor);
 }
