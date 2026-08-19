@@ -292,27 +292,75 @@ void DiffViewer::renderSideBySide(
     oldView->clear();
     newView->clear();
 
-    QTextCursor oldCursor(oldView->document());
-    QTextCursor newCursor(newView->document());
+    QTextCursor oldCursor(
+        oldView->document());
 
+    QTextCursor newCursor(
+        newView->document());
+
+
+    /*
+     * Context formatting.
+     */
     QTextCharFormat contextFormat;
-    contextFormat.setForeground(QColor("#24292f"));
 
+    contextFormat.setForeground(
+        QColor("#24292f"));
+
+
+    /*
+     * Removed line formatting.
+     */
     QTextCharFormat removedFormat;
-    removedFormat.setForeground(QColor("#cf222e"));
-    removedFormat.setBackground(QColor("#ffebe9"));
 
+    removedFormat.setForeground(
+        QColor("#cf222e"));
+
+    removedFormat.setBackground(
+        QColor("#ffebe9"));
+
+
+    /*
+     * Added line formatting.
+     */
     QTextCharFormat addedFormat;
-    addedFormat.setForeground(QColor("#1a7f37"));
-    addedFormat.setBackground(QColor("#dafbe1"));
 
+    addedFormat.setForeground(
+        QColor("#1a7f37"));
+
+    addedFormat.setBackground(
+        QColor("#dafbe1"));
+
+
+    /*
+     * Hunk header formatting.
+     */
     QTextCharFormat hunkFormat;
-    hunkFormat.setForeground(QColor("#0969da"));
-    hunkFormat.setBackground(QColor("#ddf4ff"));
-    hunkFormat.setFontWeight(QFont::Bold);
+
+    hunkFormat.setForeground(
+        QColor("#0969da"));
+
+    hunkFormat.setBackground(
+        QColor("#ddf4ff"));
+
+    hunkFormat.setFontWeight(
+        QFont::Bold);
 
 
-    for (const DiffHunk &hunk : file.hunks)
+    /*
+     * Line-number formatting.
+     *
+     * Slightly different from source code so
+     * the line numbers are visually identifiable.
+     */
+    QTextCharFormat lineNumberFormat;
+
+    lineNumberFormat.setForeground(
+        QColor("#57606a"));
+
+
+    for (const DiffHunk &hunk :
+         file.hunks)
     {
         QString hunkHeader =
             QString("@@ -%1,%2 +%3,%4 @@")
@@ -321,15 +369,17 @@ void DiffViewer::renderSideBySide(
                 .arg(hunk.newStart)
                 .arg(hunk.newCount);
 
+
         if (!hunk.functionName.isEmpty())
         {
             hunkHeader += " ";
-            hunkHeader += hunk.functionName;
+            hunkHeader +=
+                hunk.functionName;
         }
 
 
         /*
-         * Hunk header appears in both panes.
+         * Hunk header appears on both sides.
          */
         oldCursor.insertText(
             hunkHeader + "\n",
@@ -340,78 +390,106 @@ void DiffViewer::renderSideBySide(
             hunkFormat);
 
 
-        for (const DiffLine &line : hunk.lines)
+        for (const DiffLine &line :
+             hunk.lines)
         {
-            switch (line.type)
+            /*
+             * Context line.
+             */
+            if (line.type ==
+                DiffLineType::Context)
             {
-            case DiffLineType::Context:
-            {
-                QString oldLine =
-                    QString("%1 | %2")
-                        .arg(line.oldLine, 5)
-                        .arg(line.text);
+                QString oldNumber =
+                    QString("%1")
+                        .arg(line.oldLine, 5);
 
-                QString newLine =
-                    QString("%1 | %2")
-                        .arg(line.newLine, 5)
-                        .arg(line.text);
+                QString newNumber =
+                    QString("%1")
+                        .arg(line.newLine, 5);
+
 
                 oldCursor.insertText(
-                    oldLine + "\n",
+                    oldNumber,
+                    lineNumberFormat);
+
+                oldCursor.insertText(
+                    " | " + line.text + "\n",
                     contextFormat);
+
 
                 newCursor.insertText(
-                    newLine + "\n",
+                    newNumber,
+                    lineNumberFormat);
+
+                newCursor.insertText(
+                    " | " + line.text + "\n",
                     contextFormat);
 
-                break;
+                continue;
             }
 
 
-            case DiffLineType::Removed:
+            /*
+             * Removed line.
+             */
+            if (line.type ==
+                DiffLineType::Removed)
             {
-                QString oldLine =
-                    QString("%1 | -%2")
-                        .arg(line.oldLine, 5)
-                        .arg(line.text);
+                QString oldNumber =
+                    QString("%1")
+                        .arg(line.oldLine, 5);
+
 
                 oldCursor.insertText(
-                    oldLine + "\n",
+                    oldNumber,
                     removedFormat);
 
-                /*
-                 * Keep the NEW side aligned.
-                 */
-                newCursor.insertText("\n");
+                oldCursor.insertText(
+                    " | -" + line.text + "\n",
+                    removedFormat);
 
-                break;
+
+                /*
+                 * Empty row on NEW side.
+                 */
+                newCursor.insertText(
+                    "\n");
+
+                continue;
             }
 
 
-            case DiffLineType::Added:
+            /*
+             * Added line.
+             */
+            if (line.type ==
+                DiffLineType::Added)
             {
                 /*
-                 * Keep the OLD side aligned.
+                 * Empty row on OLD side.
                  */
-                oldCursor.insertText("\n");
+                oldCursor.insertText(
+                    "\n");
 
-                QString newLine =
-                    QString("%1 | +%2")
-                        .arg(line.newLine, 5)
-                        .arg(line.text);
+
+                QString newNumber =
+                    QString("%1")
+                        .arg(line.newLine, 5);
+
 
                 newCursor.insertText(
-                    newLine + "\n",
+                    newNumber,
                     addedFormat);
 
-                break;
-            }
+                newCursor.insertText(
+                    " | +" + line.text + "\n",
+                    addedFormat);
             }
         }
 
 
         /*
-         * Blank line between hunks.
+         * Separate hunks visually.
          */
         oldCursor.insertText("\n");
         newCursor.insertText("\n");
@@ -419,13 +497,20 @@ void DiffViewer::renderSideBySide(
 
 
     /*
-     * Put both views at the beginning.
+     * Reset scroll positions.
      */
-    oldView->moveCursor(
-        QTextCursor::Start);
+    oldView->verticalScrollBar()
+        ->setValue(0);
 
-    newView->moveCursor(
-        QTextCursor::Start);
+    newView->verticalScrollBar()
+        ->setValue(0);
 
-    horizontalScrollBar->setValue(0);
+    oldView->horizontalScrollBar()
+        ->setValue(0);
+
+    newView->horizontalScrollBar()
+        ->setValue(0);
+
+    horizontalScrollBar
+        ->setValue(0);
 }
