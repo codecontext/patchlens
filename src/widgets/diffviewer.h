@@ -4,6 +4,7 @@
 
 #include "../core/patch/patchmodel.h"
 
+class QComboBox;
 class QFrame;
 class QPlainTextEdit;
 class QScrollBar;
@@ -17,11 +18,32 @@ public:
 
     void setFile(const FileDiff &file);
 
+private slots:
+    void viewModeChanged(int index);
+
 private:
+    enum class ViewMode
+    {
+        Unified,
+        SideBySide
+    };
+
     void setupUi();
     void connectScrollBars();
 
-    void renderSideBySide(const FileDiff &file);
+    void renderFile();
+
+    void renderUnified(
+        const FileDiff &file);
+
+    void renderSideBySide(
+        const FileDiff &file);
+
+    void updateHorizontalScrollBar();
+
+    QComboBox *viewModeCombo = nullptr;
+
+    QPlainTextEdit *unifiedView = nullptr;
 
     QPlainTextEdit *oldView = nullptr;
     QPlainTextEdit *newView = nullptr;
@@ -29,4 +51,9 @@ private:
     QFrame *separator = nullptr;
 
     QScrollBar *horizontalScrollBar = nullptr;
+
+    FileDiff currentFile;
+
+    ViewMode viewMode =
+        ViewMode::SideBySide;
 };

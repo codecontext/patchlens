@@ -1,13 +1,94 @@
 #include "diffviewer.h"
 
+#include <QComboBox>
 #include <QFrame>
-#include <QLabel>
 #include <QFontDatabase>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QPlainTextEdit>
 #include <QScrollBar>
-//#include <QSignalBlocker>
+#include <QTextCursor>
+#include <QTextCharFormat>
 #include <QVBoxLayout>
+
+
+namespace
+{
+
+QFont fixedFont()
+{
+    return QFontDatabase::systemFont(
+        QFontDatabase::FixedFont);
+}
+
+
+QTextCharFormat contextFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#24292f"));
+
+    return format;
+}
+
+
+QTextCharFormat removedFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#cf222e"));
+
+    format.setBackground(
+        QColor("#ffebe9"));
+
+    return format;
+}
+
+
+QTextCharFormat addedFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#1a7f37"));
+
+    format.setBackground(
+        QColor("#dafbe1"));
+
+    return format;
+}
+
+
+QTextCharFormat hunkFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#0969da"));
+
+    format.setBackground(
+        QColor("#ddf4ff"));
+
+    format.setFontWeight(
+        QFont::Bold);
+
+    return format;
+}
+
+
+QTextCharFormat lineNumberFormat()
+{
+    QTextCharFormat format;
+
+    format.setForeground(
+        QColor("#57606a"));
+
+    return format;
+}
+
+} // namespace
 
 
 DiffViewer::DiffViewer(QWidget *parent)
@@ -30,74 +111,89 @@ void DiffViewer::setupUi()
 
 
     /*
-     * Header.
+     * View selector.
      */
-    auto *headerLayout =
+    auto *toolbar =
         new QHBoxLayout();
 
-    headerLayout->setContentsMargins(
-        0, 0, 0, 0);
-
-    headerLayout->setSpacing(0);
+    toolbar->setContentsMargins(
+        8, 6, 8, 6);
 
 
-    auto *oldHeader =
-        new QLabel("OLD", this);
-
-    auto *newHeader =
-        new QLabel("NEW", this);
+    auto *viewLabel =
+        new QLabel("View:", this);
 
 
-    oldHeader->setAlignment(
-        Qt::AlignCenter);
+    viewModeCombo =
+        new QComboBox(this);
 
-    newHeader->setAlignment(
-        Qt::AlignCenter);
+    viewModeCombo->addItem(
+        "Unified");
 
+    viewModeCombo->addItem(
+        "Side-by-Side");
 
-    separator =
-        new QFrame(this);
-
-    separator->setFrameShape(
-        QFrame::VLine);
-
-    separator->setFrameShadow(
-        QFrame::Plain);
+    viewModeCombo->setCurrentIndex(1);
 
 
-    headerLayout->addWidget(
-        oldHeader,
-        1);
+    connect(
+        viewModeCombo,
+        &QComboBox::currentIndexChanged,
+        this,
+        &DiffViewer::viewModeChanged);
 
-    headerLayout->addWidget(
-        separator);
 
-    headerLayout->addWidget(
-        newHeader,
-        1);
+    toolbar->addWidget(
+        viewLabel);
+
+    toolbar->addWidget(
+        viewModeCombo);
+
+    toolbar->addStretch();
 
 
     mainLayout->addLayout(
-        headerLayout);
+        toolbar);
 
 
     /*
-     * Diff views.
+     * Unified view.
      */
-    auto *contentLayout =
-        new QHBoxLayout();
+    unifiedView =
+        new QPlainTextEdit(this);
 
-    contentLayout->setContentsMargins(
+    unifiedView->setReadOnly(true);
+
+    unifiedView->setLineWrapMode(
+        QPlainTextEdit::NoWrap);
+
+    unifiedView->setFont(
+        fixedFont());
+
+
+    /*
+     * Side-by-side views.
+     */
+    auto *sideBySideWidget =
+        new QWidget(this);
+
+    auto *sideLayout =
+        new QHBoxLayout(
+            sideBySideWidget);
+
+    sideLayout->setContentsMargins(
         0, 0, 0, 0);
 
-    contentLayout->setSpacing(0);
+    sideLayout->setSpacing(0);
 
 
     oldView =
-        new QPlainTextEdit(this);
+        new QPlainTextEdit(
+            sideBySideWidget);
 
     newView =
-        new QPlainTextEdit(this);
+        new QPlainTextEdit(
+            sideBySideWidget);
 
 
     oldView->setReadOnly(true);
@@ -111,20 +207,13 @@ void DiffViewer::setupUi()
         QPlainTextEdit::NoWrap);
 
 
-    QFont fixedFont =
-        QFontDatabase::systemFont(
-            QFontDatabase::FixedFont);
+    oldView->setFont(
+        fixedFont());
 
-    oldView->setFont(fixedFont);
-    newView->setFont(fixedFont);
+    newView->setFont(
+        fixedFont());
 
 
-    /*
-     * Hide individual horizontal scrollbars.
-     *
-     * A single scrollbar below both panes
-     * will control horizontal movement.
-     */
     oldView->setHorizontalScrollBarPolicy(
         Qt::ScrollBarAlwaysOff);
 
@@ -132,12 +221,6 @@ void DiffViewer::setupUi()
         Qt::ScrollBarAlwaysOff);
 
 
-    /*
-     * Vertical scrollbars.
-     *
-     * Only the right-hand scrollbar is shown.
-     * Both views move together.
-     */
     oldView->setVerticalScrollBarPolicy(
         Qt::ScrollBarAlwaysOff);
 
@@ -145,20 +228,34 @@ void DiffViewer::setupUi()
         Qt::ScrollBarAsNeeded);
 
 
-    contentLayout->addWidget(
+    separator =
+        new QFrame(sideBySideWidget);
+
+    separator->setFrameShape(
+        QFrame::VLine);
+
+    separator->setFrameShadow(
+        QFrame::Plain);
+
+
+    sideLayout->addWidget(
         oldView,
         1);
 
-    contentLayout->addWidget(
+    sideLayout->addWidget(
         separator);
 
-    contentLayout->addWidget(
+    sideLayout->addWidget(
         newView,
         1);
 
 
-    mainLayout->addLayout(
-        contentLayout,
+    mainLayout->addWidget(
+        unifiedView,
+        1);
+
+    mainLayout->addWidget(
+        sideBySideWidget,
         1);
 
 
@@ -170,27 +267,28 @@ void DiffViewer::setupUi()
             Qt::Horizontal,
             this);
 
-
     mainLayout->addWidget(
         horizontalScrollBar);
 
 
     /*
-     * Initial message.
+     * Initial state.
      */
+    unifiedView->hide();
+
+    sideBySideWidget->show();
+
     oldView->setPlainText(
         "Select a file to view changes.");
 
     newView->clear();
 }
 
+
 void DiffViewer::connectScrollBars()
 {
     /*
-     * Synchronize vertical scrolling.
-     *
-     * Moving either pane moves the other pane
-     * to the same vertical position.
+     * Vertical synchronization.
      */
     connect(
         oldView->verticalScrollBar(),
@@ -206,48 +304,15 @@ void DiffViewer::connectScrollBars()
 
 
     /*
-     * One horizontal scrollbar controls both
-     * diff panes.
-     *
-     * Use the maximum range of the two views.
+     * Horizontal ranges.
      */
-    auto updateHorizontalRange =
-        [this]()
-        {
-            QScrollBar *oldBar =
-                oldView->horizontalScrollBar();
-
-            QScrollBar *newBar =
-                newView->horizontalScrollBar();
-
-            int maximum =
-                qMax(
-                    oldBar->maximum(),
-                    newBar->maximum());
-
-            int pageStep =
-                qMax(
-                    oldBar->pageStep(),
-                    newBar->pageStep());
-
-            horizontalScrollBar->setRange(
-                0,
-                maximum);
-
-            horizontalScrollBar->setPageStep(
-                pageStep);
-        };
-
-
     connect(
         oldView->horizontalScrollBar(),
         &QScrollBar::rangeChanged,
         this,
-        [updateHorizontalRange](
-            int,
-            int)
+        [this](int, int)
         {
-            updateHorizontalRange();
+            updateHorizontalScrollBar();
         });
 
 
@@ -255,16 +320,24 @@ void DiffViewer::connectScrollBars()
         newView->horizontalScrollBar(),
         &QScrollBar::rangeChanged,
         this,
-        [updateHorizontalRange](
-            int,
-            int)
+        [this](int, int)
         {
-            updateHorizontalRange();
+            updateHorizontalScrollBar();
+        });
+
+
+    connect(
+        unifiedView->horizontalScrollBar(),
+        &QScrollBar::rangeChanged,
+        this,
+        [this](int, int)
+        {
+            updateHorizontalScrollBar();
         });
 
 
     /*
-     * Shared horizontal scrollbar.
+     * Shared horizontal scrolling.
      */
     connect(
         horizontalScrollBar,
@@ -272,97 +345,162 @@ void DiffViewer::connectScrollBars()
         this,
         [this](int value)
         {
-            oldView->horizontalScrollBar()
+            if (viewMode ==
+                ViewMode::Unified)
+            {
+                unifiedView
+                    ->horizontalScrollBar()
+                    ->setValue(value);
+
+                return;
+            }
+
+
+            oldView
+                ->horizontalScrollBar()
                 ->setValue(value);
 
-            newView->horizontalScrollBar()
+            newView
+                ->horizontalScrollBar()
                 ->setValue(value);
         });
 }
 
+
+void DiffViewer::updateHorizontalScrollBar()
+{
+    if (viewMode ==
+        ViewMode::Unified)
+    {
+        auto *bar =
+            unifiedView->horizontalScrollBar();
+
+        horizontalScrollBar->setRange(
+            bar->minimum(),
+            bar->maximum());
+
+        horizontalScrollBar->setPageStep(
+            bar->pageStep());
+
+        return;
+    }
+
+
+    int maximum =
+        qMax(
+            oldView
+                ->horizontalScrollBar()
+                ->maximum(),
+
+            newView
+                ->horizontalScrollBar()
+                ->maximum());
+
+
+    int pageStep =
+        qMax(
+            oldView
+                ->horizontalScrollBar()
+                ->pageStep(),
+
+            newView
+                ->horizontalScrollBar()
+                ->pageStep());
+
+
+    horizontalScrollBar->setRange(
+        0,
+        maximum);
+
+    horizontalScrollBar->setPageStep(
+        pageStep);
+}
+
+
 void DiffViewer::setFile(
     const FileDiff &file)
 {
-    renderSideBySide(file);
+    currentFile = file;
+
+    renderFile();
 }
 
-void DiffViewer::renderSideBySide(
+
+void DiffViewer::renderFile()
+{
+    if (viewMode ==
+        ViewMode::Unified)
+    {
+        renderUnified(
+            currentFile);
+    }
+    else
+    {
+        renderSideBySide(
+            currentFile);
+    }
+
+    updateHorizontalScrollBar();
+}
+
+
+void DiffViewer::viewModeChanged(
+    int index)
+{
+    if (index == 0)
+    {
+        viewMode =
+            ViewMode::Unified;
+    }
+    else
+    {
+        viewMode =
+            ViewMode::SideBySide;
+    }
+
+
+    /*
+     * Hide/show the appropriate views.
+     */
+    QWidget *sideBySideWidget =
+        oldView->parentWidget();
+
+
+    if (viewMode ==
+        ViewMode::Unified)
+    {
+        unifiedView->show();
+        sideBySideWidget->hide();
+    }
+    else
+    {
+        unifiedView->hide();
+        sideBySideWidget->show();
+    }
+
+
+    renderFile();
+
+    horizontalScrollBar->setValue(0);
+}
+
+
+/*
+ * Unified diff rendering.
+ */
+void DiffViewer::renderUnified(
     const FileDiff &file)
 {
-    oldView->clear();
-    newView->clear();
+    unifiedView->clear();
 
-    QTextCursor oldCursor(
-        oldView->document());
-
-    QTextCursor newCursor(
-        newView->document());
-
-
-    /*
-     * Context formatting.
-     */
-    QTextCharFormat contextFormat;
-
-    contextFormat.setForeground(
-        QColor("#24292f"));
-
-
-    /*
-     * Removed line formatting.
-     */
-    QTextCharFormat removedFormat;
-
-    removedFormat.setForeground(
-        QColor("#cf222e"));
-
-    removedFormat.setBackground(
-        QColor("#ffebe9"));
-
-
-    /*
-     * Added line formatting.
-     */
-    QTextCharFormat addedFormat;
-
-    addedFormat.setForeground(
-        QColor("#1a7f37"));
-
-    addedFormat.setBackground(
-        QColor("#dafbe1"));
-
-
-    /*
-     * Hunk header formatting.
-     */
-    QTextCharFormat hunkFormat;
-
-    hunkFormat.setForeground(
-        QColor("#0969da"));
-
-    hunkFormat.setBackground(
-        QColor("#ddf4ff"));
-
-    hunkFormat.setFontWeight(
-        QFont::Bold);
-
-
-    /*
-     * Line-number formatting.
-     *
-     * Slightly different from source code so
-     * the line numbers are visually identifiable.
-     */
-    QTextCharFormat lineNumberFormat;
-
-    lineNumberFormat.setForeground(
-        QColor("#57606a"));
+    QTextCursor cursor(
+        unifiedView->document());
 
 
     for (const DiffHunk &hunk :
          file.hunks)
     {
-        QString hunkHeader =
+        QString header =
             QString("@@ -%1,%2 +%3,%4 @@")
                 .arg(hunk.oldStart)
                 .arg(hunk.oldCount)
@@ -372,145 +510,217 @@ void DiffViewer::renderSideBySide(
 
         if (!hunk.functionName.isEmpty())
         {
-            hunkHeader += " ";
-            hunkHeader +=
-                hunk.functionName;
+            header += " ";
+            header += hunk.functionName;
         }
 
 
-        /*
-         * Hunk header appears on both sides.
-         */
-        oldCursor.insertText(
-            hunkHeader + "\n",
-            hunkFormat);
-
-        newCursor.insertText(
-            hunkHeader + "\n",
-            hunkFormat);
+        cursor.insertText(
+            header + "\n",
+            hunkFormat());
 
 
         for (const DiffLine &line :
              hunk.lines)
         {
-            /*
-             * Context line.
-             */
-            if (line.type ==
-                DiffLineType::Context)
+            QString oldNumber;
+            QString newNumber;
+
+
+            if (line.oldLine >= 0)
             {
-                QString oldNumber =
-                    QString("%1")
-                        .arg(line.oldLine, 5);
-
-                QString newNumber =
-                    QString("%1")
-                        .arg(line.newLine, 5);
-
-
-                oldCursor.insertText(
-                    oldNumber,
-                    lineNumberFormat);
-
-                oldCursor.insertText(
-                    " | " + line.text + "\n",
-                    contextFormat);
-
-
-                newCursor.insertText(
-                    newNumber,
-                    lineNumberFormat);
-
-                newCursor.insertText(
-                    " | " + line.text + "\n",
-                    contextFormat);
-
-                continue;
+                oldNumber =
+                    QString::number(
+                        line.oldLine);
             }
 
 
-            /*
-             * Removed line.
-             */
-            if (line.type ==
-                DiffLineType::Removed)
+            if (line.newLine >= 0)
             {
-                QString oldNumber =
-                    QString("%1")
-                        .arg(line.oldLine, 5);
-
-
-                oldCursor.insertText(
-                    oldNumber,
-                    removedFormat);
-
-                oldCursor.insertText(
-                    " | -" + line.text + "\n",
-                    removedFormat);
-
-
-                /*
-                 * Empty row on NEW side.
-                 */
-                newCursor.insertText(
-                    "\n");
-
-                continue;
+                newNumber =
+                    QString::number(
+                        line.newLine);
             }
 
 
-            /*
-             * Added line.
-             */
-            if (line.type ==
-                DiffLineType::Added)
+            QString prefix;
+
+
+            QTextCharFormat format;
+
+
+            switch (line.type)
             {
-                /*
-                 * Empty row on OLD side.
-                 */
+            case DiffLineType::Context:
+                prefix = " ";
+                format =
+                    contextFormat();
+                break;
+
+            case DiffLineType::Added:
+                prefix = "+";
+                format =
+                    addedFormat();
+                break;
+
+            case DiffLineType::Removed:
+                prefix = "-";
+                format =
+                    removedFormat();
+                break;
+            }
+
+
+            QString text =
+                QString("%1 %2 %3 %4\n")
+                    .arg(oldNumber, 5)
+                    .arg(newNumber, 5)
+                    .arg(prefix)
+                    .arg(line.text);
+
+
+            cursor.insertText(
+                text,
+                format);
+        }
+
+
+        cursor.insertText(
+            "\n");
+    }
+
+
+    unifiedView->moveCursor(
+        QTextCursor::Start);
+}
+
+
+/*
+ * Side-by-side rendering.
+ */
+void DiffViewer::renderSideBySide(
+    const FileDiff &file)
+{
+    oldView->clear();
+    newView->clear();
+
+
+    QTextCursor oldCursor(
+        oldView->document());
+
+    QTextCursor newCursor(
+        newView->document());
+
+
+    for (const DiffHunk &hunk :
+         file.hunks)
+    {
+        QString header =
+            QString("@@ -%1,%2 +%3,%4 @@")
+                .arg(hunk.oldStart)
+                .arg(hunk.oldCount)
+                .arg(hunk.newStart)
+                .arg(hunk.newCount);
+
+
+        if (!hunk.functionName.isEmpty())
+        {
+            header += " ";
+            header += hunk.functionName;
+        }
+
+
+        oldCursor.insertText(
+            header + "\n",
+            hunkFormat());
+
+        newCursor.insertText(
+            header + "\n",
+            hunkFormat());
+
+
+        for (const DiffLine &line :
+             hunk.lines)
+        {
+            switch (line.type)
+            {
+            case DiffLineType::Context:
+            {
+                QString oldLine =
+                    QString("%1 | %2")
+                        .arg(line.oldLine, 5)
+                        .arg(line.text);
+
+                QString newLine =
+                    QString("%1 | %2")
+                        .arg(line.newLine, 5)
+                        .arg(line.text);
+
+
+                oldCursor.insertText(
+                    oldLine + "\n",
+                    contextFormat());
+
+                newCursor.insertText(
+                    newLine + "\n",
+                    contextFormat());
+
+                break;
+            }
+
+
+            case DiffLineType::Removed:
+            {
+                QString oldLine =
+                    QString("%1 | -%2")
+                        .arg(line.oldLine, 5)
+                        .arg(line.text);
+
+
+                oldCursor.insertText(
+                    oldLine + "\n",
+                    removedFormat());
+
+                newCursor.insertText(
+                    "\n");
+
+                break;
+            }
+
+
+            case DiffLineType::Added:
+            {
                 oldCursor.insertText(
                     "\n");
 
 
-                QString newNumber =
-                    QString("%1")
-                        .arg(line.newLine, 5);
+                QString newLine =
+                    QString("%1 | +%2")
+                        .arg(line.newLine, 5)
+                        .arg(line.text);
 
 
                 newCursor.insertText(
-                    newNumber,
-                    addedFormat);
+                    newLine + "\n",
+                    addedFormat());
 
-                newCursor.insertText(
-                    " | +" + line.text + "\n",
-                    addedFormat);
+                break;
+            }
             }
         }
 
 
-        /*
-         * Separate hunks visually.
-         */
-        oldCursor.insertText("\n");
-        newCursor.insertText("\n");
+        oldCursor.insertText(
+            "\n");
+
+        newCursor.insertText(
+            "\n");
     }
 
 
-    /*
-     * Reset scroll positions.
-     */
-    oldView->verticalScrollBar()
-        ->setValue(0);
+    oldView->moveCursor(
+        QTextCursor::Start);
 
-    newView->verticalScrollBar()
-        ->setValue(0);
-
-    oldView->horizontalScrollBar()
-        ->setValue(0);
-
-    newView->horizontalScrollBar()
-        ->setValue(0);
-
-    horizontalScrollBar
-        ->setValue(0);
+    newView->moveCursor(
+        QTextCursor::Start);
 }
